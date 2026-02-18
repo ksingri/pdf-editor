@@ -296,7 +296,7 @@ const PDFEditor = () => {
                         position: 'absolute',
                         left: overlay.x * scale,
                         top: overlay.y * scale,
-                        // Removed transform to ensure better alignment with existing text
+                        zIndex: 10, // Must be above react-pdf text layer (z-index: 2)
                       }}
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -334,8 +334,12 @@ const PDFEditor = () => {
                           }}
                         />
                         {selectedOverlayId === overlay.id && (
-                             <button 
-                                onClick={() => deleteOverlay(overlay.id)}
+                             <button
+                                onMouseDown={(e) => {
+                                    e.preventDefault(); // Prevent input blur so overlay isn't removed before click fires
+                                    e.stopPropagation();
+                                    deleteOverlay(overlay.id);
+                                }}
                                 style={{
                                     marginLeft: '5px',
                                     background: 'red',
