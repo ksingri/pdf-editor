@@ -111,6 +111,8 @@ const PDFEditor = () => {
     const pageRect = e.currentTarget.getBoundingClientRect();
     let x, y, text = 'New Text', isWhiteout = false;
     let fontSize = 12;
+    // Size of the original text, so the whiteout covers all of it even if the new text is shorter
+    let coverWidth = 0, coverHeight = 0;
 
     // Check if clicked on a text span from the PDF text layer
     if (e.target.tagName === 'SPAN' && e.target.closest('.react-pdf__Page__textContent')) {
@@ -123,6 +125,8 @@ const PDFEditor = () => {
         
         text = span.textContent;
         isWhiteout = true; // Auto-enable whiteout to "replace" text
+        coverWidth = spanRect.width / scale;
+        coverHeight = spanRect.height / scale;
         
         // Approximate font size
         const computedStyle = window.getComputedStyle(span);
@@ -145,7 +149,9 @@ const PDFEditor = () => {
       y: y / scale,
       text: text,
       fontSize: fontSize,
-      isWhiteout: isWhiteout
+      isWhiteout: isWhiteout,
+      coverWidth: coverWidth,
+      coverHeight: coverHeight
     };
 
     setOverlays([...overlays, newOverlay]);
@@ -183,11 +189,12 @@ const PDFEditor = () => {
 
       if (overlay.isWhiteout) {
         const textWidth = helveticaFont.widthOfTextAtSize(overlay.text, overlay.fontSize);
+        const coverHeight = Math.max(overlay.fontSize, overlay.coverHeight ?? 0) + 4;
         page.drawRectangle({
           x: overlay.x,
-          y: pdfY - (overlay.fontSize * 0.2),
-          width: textWidth + 4,
-          height: overlay.fontSize + 4,
+          y: height - overlay.y - (coverHeight - 4),
+          width: Math.max(textWidth, overlay.coverWidth ?? 0) + 4,
+          height: coverHeight,
           color: rgb(1, 1, 1),
         });
       }
@@ -313,7 +320,7 @@ const PDFEditor = () => {
                             outline: 'none',
                             padding: '2px',
                             fontFamily: 'Helvetica, sans-serif',
-                            minWidth: '20px'
+                            minWidth: `${Math.max(20, (overlay.coverWidth ?? 0) * scale)}px`
                           }}
                           onFocus={(e) => {
                             setSelectedOverlayId(overlay.id);
