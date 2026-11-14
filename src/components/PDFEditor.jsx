@@ -248,6 +248,27 @@ const PDFEditor = () => {
     }
   };
 
+  // Save the edited PDF: native save dialog in Electron, browser download on the web
+  const handleDownloadPdf = async () => {
+    try {
+      const pdfBytes = await generateEditedPdfBytes();
+      if (window.electronAPI) {
+        await window.electronAPI.saveFile(pdfBytes);
+        return;
+      }
+      const baseName = (pdfPath ?? 'document').split(/[\\/]/).pop().replace(/\.pdf$/i, '');
+      const url = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${baseName}-edited.pdf`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save PDF: ' + err.message);
+    }
+  };
+
   const selectedOverlay = overlays.find(o => o.id === selectedOverlayId);
 
   return (
@@ -262,6 +283,7 @@ const PDFEditor = () => {
       <div style={{ display: 'flex', gap: '10px', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 100, padding: '10px', borderBottom: '1px solid #ccc', flexWrap: 'wrap' }}>
         <button onClick={handleLoadPdf}>Open PDF</button>
         <button onClick={handlePreviewPdf} disabled={!pdfFile}>Preview</button>
+        <button onClick={handleDownloadPdf} disabled={!pdfFile}>Download</button>
         <button onClick={() => setShowMetadata(!showMetadata)} disabled={!metadata}>
           {showMetadata ? 'Hide Metadata' : 'Metadata'}
         </button>
