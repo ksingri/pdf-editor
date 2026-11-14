@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { METADATA_FIELDS, readMetadata, applyMetadata } from '../pdfMetadata';
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 
@@ -20,10 +21,27 @@ const PDFEditor = () => {
   const [scale, setScale] = useState(1.0);
   const [overlays, setOverlays] = useState([]);
   const [selectedOverlayId, setSelectedOverlayId] = useState(null);
+  const [metadata, setMetadata] = useState(null);
+  const [showMetadata, setShowMetadata] = useState(false);
 
   const fileInputRef = useRef(null);
   // Store the raw PDF bytes as a plain Array of numbers - immune to ArrayBuffer detachment
   const pdfBytesRef = useRef(null);
+  // Metadata as read from the file, to detect which fields the user changed
+  const originalMetadataRef = useRef(null);
+
+  const loadMetadata = async (plainArray) => {
+    try {
+      const doc = await PDFDocument.load(new Uint8Array(plainArray), { updateMetadata: false });
+      const meta = readMetadata(doc);
+      originalMetadataRef.current = meta;
+      setMetadata(meta);
+    } catch (e) {
+      console.error("Error reading PDF metadata:", e);
+      originalMetadataRef.current = null;
+      setMetadata(null);
+    }
+  };
 
   // Clean up blob URL on unmount or change
   useEffect(() => {
@@ -56,6 +74,7 @@ const PDFEditor = () => {
           const blob = new Blob([viewerBytes], { type: 'application/pdf' });
           setPdfFile(URL.createObjectURL(blob));
           setOverlays([]); // Reset overlays
+          loadMetadata(plainArray);
         }
       } else {
         // Fallback to web file input
@@ -89,6 +108,7 @@ const PDFEditor = () => {
         setPdfFile(URL.createObjectURL(blob));
         setPdfPath(file.name);
         setOverlays([]);
+        loadMetadata(plainArray);
       };
       reader.onerror = (e) => {
         console.error("Error reading file:", e);
@@ -176,7 +196,11 @@ const PDFEditor = () => {
     const plainArray = pdfBytesRef.current;
     const pdfBytesInput = new Uint8Array(plainArray);
 
-    const pdfDoc = await PDFDocument.load(pdfBytesInput);
+    // updateMetadata: false stops pdf-lib from overwriting Producer, Creator and dates
+    const pdfDoc = await PDFDocument.load(pdfBytesInput, { updateMetadata: false });
+    if (metadata && originalMetadataRef.current) {
+      applyMetadata(pdfDoc, originalMetadataRef.current, metadata);
+    }
     const pages = pdfDoc.getPages();
     const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
@@ -238,6 +262,9 @@ const PDFEditor = () => {
       <div style={{ display: 'flex', gap: '10px', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 100, padding: '10px', borderBottom: '1px solid #ccc', flexWrap: 'wrap' }}>
         <button onClick={handleLoadPdf}>Open PDF</button>
         <button onClick={handlePreviewPdf} disabled={!pdfFile}>Preview</button>
+        <button onClick={() => setShowMetadata(!showMetadata)} disabled={!metadata}>
+          {showMetadata ? 'Hide Metadata' : 'Metadata'}
+        </button>
         
         {selectedOverlay && (
           <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginLeft: 'auto', borderLeft: '2px solid #ddd', paddingLeft: '15px' }}>
@@ -268,6 +295,23 @@ const PDFEditor = () => {
           </div>
         )}
       </div>
+
+      {showMetadata && metadata && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '8px 12px', alignItems: 'center', background: '#fff', padding: '15px', border: '1px solid #ccc', borderRadius: '4px', maxWidth: '600px' }}>
+          {METADATA_FIELDS.map(({ key, label, type }) => (
+            <React.Fragment key={key}>
+              <label htmlFor={`meta-${key}`} style={{ fontSize: '14px', fontWeight: 'bold' }}>{label}</label>
+              <input
+                id={`meta-${key}`}
+                type={type}
+                value={metadata[key]}
+                onChange={(e) => setMetadata({ ...metadata, [key]: e.target.value })}
+                style={{ padding: '4px', borderRadius: '4px', border: '1px solid #ccc' }}
+              />
+            </React.Fragment>
+          ))}
+        </div>
+      )}
 
       <div className="editor-container" style={{ background: '#eee', padding: '20px', minHeight: '80vh' }}>
         {!pdfFile && <div style={{textAlign: 'center', marginTop: '50px'}}>Open a PDF to start editing</div>}
