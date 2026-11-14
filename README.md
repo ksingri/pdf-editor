@@ -9,6 +9,7 @@ A simple local PDF editor for macOS built with Electron and React.
   - Cover the original text (Whiteout mode).
   - Match the approximate font size.
 - **Add New Text:** Click on any empty space to add a new text box.
+- **Edit Metadata:** Click "Metadata" to change Title, Author, Subject, Keywords, Creator, Producer, and dates.
 - **Save** the modified PDF to your computer.
 
 ## Installation
